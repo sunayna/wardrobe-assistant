@@ -1,0 +1,58 @@
+<svg width="100%" viewBox="0 0 680 744" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Wardrobe assistant daily pipeline</title>
+<desc>Flowchart showing the daily recommendation pipeline: a trigger enters a LangGraph graph containing four nodes (context, weather, wardrobe query, ranking), then produces an output. Teal nodes use a Claude LLM call, coral nodes are plain Python/API calls, gray nodes are the trigger and output.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#5F5E5A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+
+<g>
+<rect x="210" y="40" width="260" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="340" y="58" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#2C2C2A">Trigger</text>
+<text x="340" y="76" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#5F5E5A">Daily cron or chat message</text>
+</g>
+<line x1="340" y1="96" x2="340" y2="150" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="100" y="150" width="480" height="412" rx="16" fill="none" stroke="#B4B2A9" stroke-width="0.5" stroke-dasharray="4 4"/>
+<text x="116" y="174" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#2C2C2A">LangGraph graph</text>
+
+<g>
+<rect x="210" y="200" width="260" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="340" y="218" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#085041">Context node</text>
+<text x="340" y="236" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#0F6E56">Claude decides: email tool?</text>
+</g>
+<line x1="340" y1="256" x2="340" y2="292" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="210" y="292" width="260" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text x="340" y="310" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#712B13">Weather node</text>
+<text x="340" y="328" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#993C1D">Python + weather API</text>
+</g>
+<line x1="340" y1="348" x2="340" y2="384" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="210" y="384" width="260" height="56" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text x="340" y="402" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#712B13">Wardrobe query</text>
+<text x="340" y="420" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#993C1D">Python + SQLite</text>
+</g>
+<text x="486" y="412" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#5F5E5A">&#8635; retries</text>
+<line x1="340" y1="440" x2="340" y2="476" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="210" y="476" width="260" height="56" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="340" y="494" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#085041">Ranking node</text>
+<text x="340" y="512" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#0F6E56">Claude ranks candidates</text>
+</g>
+
+<line x1="340" y1="532" x2="340" y2="602" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="210" y="602" width="260" height="56" rx="8" fill="#F1EFE8" stroke="#5F5E5A" stroke-width="0.5"/>
+<text x="340" y="620" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="14" font-weight="500" fill="#2C2C2A">Output</text>
+<text x="340" y="638" text-anchor="middle" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#5F5E5A">Notification or chat reply</text>
+</g>
+
+<rect x="210" y="690" width="14" height="14" rx="3" fill="#5DCAA5" stroke="#0F6E56" stroke-width="0.5"/>
+<text x="230" y="697" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#5F5E5A">Claude (LLM) reasoning</text>
+<rect x="410" y="690" width="14" height="14" rx="3" fill="#F0997B" stroke="#993C1D" stroke-width="0.5"/>
+<text x="430" y="697" dominant-baseline="central" font-family="sans-serif" font-size="12" fill="#5F5E5A">Plain Python / direct API</text>
+</svg>
