@@ -7,10 +7,15 @@ weather (fabric suitability), and wardrobe history (avoid repeating recently-wor
 ## Data source: saree catalog
 Source of truth is a **Google Photos album** (photos only, no metadata today).
 
-- **Phase 0 — Ingestion (one-time, then periodic):**
-  Pull images from the Photos album via the Photos API → run each through a vision-capable
-  Claude call → extract structured tags → write to SQLite. Re-run only against new photos
-  (diff by `photo_id`) when the album changes, not on every daily run.
+- **Phase 0 — Ingestion (one-time, then periodic, interactive):**
+  Google removed silent/background read access to Photos libraries in March 2025 — the
+  old Library API read scopes now hard-fail. The replacement, the **Picker API**, is
+  interactive by design: you open a picker link and manually select the album/photos
+  in a Google-hosted UI each time, then the script fetches just what you selected and
+  runs it through a vision-capable Claude call to extract structured tags into SQLite.
+  This fits fine with how ingestion already worked (occasional, not automatic) — it
+  just means "re-run ingestion" is always a "you click through a picker" action, never
+  a silent background scan.
 
 - **Storage (SQLite), two tables:**
   ```
@@ -46,8 +51,7 @@ runs first.
    previous run: did you wear it? Updates `wear_history.last_worn_date` / `wear_count`
    for that `photo_id`. Runs before anything else, so every later step sees accurate
    wear data, not just a pending recommendation. Only prompts if there's an unconfirmed
-   recommendation outstanding — the on-demand trigger won't double-ask if the scheduled
-   run already confirmed today.
+   recommendation outstanding.
 
 1. **Context step (LangChain agent)** — a small LangChain agent with `calendar_tool`
    and `email_tool`. It always checks tomorrow's calendar; it *decides on its own*
@@ -68,26 +72,32 @@ runs first.
    candidates on occasion fit + weather fit + freshness (days since last worn), returns
    top pick + 2 alternates with reasoning.
 
-5. **Output** — delivered via scheduled notification or chat reply (see Triggers).
-   Writes `last_recommended_date` to `wear_history` for the chosen `photo_id` — this
-   becomes tomorrow's pending confirmation, resolved by step 0 of the next run.
+5. **Output** — delivered as a chat reply (see Triggers). Writes
+   `last_recommended_date` to `wear_history` for the chosen `photo_id` — this becomes
+   tomorrow's pending confirmation, resolved by step 0 of the next run.
 
 Straight-line script: `confirm_today() → context() → weather() → query_wardrobe() →
-rank() → deliver()`, called in order, no pausing or resuming — every step runs to
-completion within a single run, once a day.
+rank() → deliver()`, called in order, no pausing or resuming.
 
 ## Triggers
 
-- **Scheduled**: daily evening job runs the full script, sends the recommendation as a
-  notification (email, most likely — TBD).
-- **On-demand**: same script, callable from chat ("what should I wear tomorrow?").
-- Both call the identical sequence of functions; only the entry point and output
-  delivery differ.
+- **On-demand only**: you ask in chat ("what should I wear tomorrow?"), the script
+  runs and replies. No unattended scheduled job.
+- Why: Gmail/Calendar/Photos access all count as Google "sensitive" scopes, and an
+  app in Google Cloud's default "Testing" mode gets its refresh tokens auto-expired
+  after 7 days. A silent daily cron job would break weekly needing a browser
+  re-auth nobody's watching for. Since you're interacting on-demand anyway, if a
+  token has expired it just prompts a re-auth right there instead of failing silently
+  in the background. Getting non-expiring tokens would require Google's app
+  verification review (privacy policy, possibly a demo video, weeks of turnaround) —
+  not worth it for a personal single-user script right now.
 
 ## Tech stack
 
-- **LangChain** — Google Calendar / Gmail / Photos tool wrappers, `ChatAnthropic` model
-  wrapper, and the agent construct for the one tool-calling step (context step).
+- **LangChain** — Google Calendar / Gmail tool wrappers, `ChatAnthropic` model wrapper,
+  and the agent construct for the one tool-calling step (context step). Photos access
+  goes through the separate interactive **Picker API** flow (not a LangChain wrapper —
+  it's a user-driven picker link, not something an agent calls as a tool).
 - **Claude** (via Anthropic API) — text reasoning (context/ranking steps) + vision
   (ingestion tagging). Note: current `agent.py` in this repo uses `ChatOllama`/local
   llama3.2 as a toy example — will need to switch to `ChatAnthropic` with a real API key
@@ -104,9 +114,13 @@ completion within a single run, once a day.
 
 - Weather API choice (location settled: **Gurgaon**, fixed — not derived from calendar,
   since travel-day handling isn't in scope yet).
-- Notification channel for the scheduled run (email / push / other).
 - Repeat-avoidance window length (N days) — starting guess, tune later.
 - Since vision-tagging your sarees is a guess (fabric especially is hard to tell from a
   photo), do you want a review/correction step after Phase 0 ingestion, or trust the
   auto-tags as-is?
-- Google API auth setup (OAuth credentials for Calendar/Gmail/Photos) — not yet created.
+- Google API auth setup (OAuth credentials for Calendar/Gmail/Photos) — not yet
+  created. Project currently sits as the default "My First Project" in Google Cloud,
+  no APIs enabled, no OAuth client yet. Since we're staying in Testing mode (see
+  Triggers), setup is: create/rename a project → enable Calendar API, Gmail API,
+  Photos Picker API → configure OAuth consent screen (External, Testing, add your own
+  account as a test user) → create an OAuth Client ID (Desktop app type).
