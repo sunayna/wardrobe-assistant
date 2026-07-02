@@ -17,15 +17,16 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       breaking Python's default CA trust — `setup_ssl_trust.sh` patches the venv to
       trust it (re-run after any venv rebuild).
 
-- [ ] **2. Photo ingestion** — Picker API flow (you select the album) → Claude vision
-      call per photo → writes rows into `sarees`. The actual foundation of the
-      catalog, and the highest-uncertainty piece (Picker API flow, how well
-      vision-tagging works on real sarees) — worth de-risking early. Depends on
-      feature 1.
+- [~] **2. Photo ingestion** — Picker API flow (you select the album) → Gemini
+      free-tier vision call per photo → writes rows into `sarees`. Code complete and
+      working; data population is ongoing — Gemini's real free-tier quota turned out
+      to be 20 req/day (not the 1,000 advertised), so tagging all ~99 photos spreads
+      across several days. Already-tagged photos are skipped automatically on re-run.
+      6/99 tagged so far.
 
-- [ ] **3. Weather step** — call a weather API for tomorrow in Gurgaon, map forecast to
-      `{recommended_fabrics, avoid_fabrics}`. No Google auth needed, low uncertainty —
-      safe to slot in whenever, doesn't block anything on its own.
+- [x] **3. Weather step** — Open-Meteo (free, no API key) for tomorrow's forecast in
+      Gurgaon, mapped to `{recommended_fabrics, avoid_fabrics}` via
+      temperature/humidity/rain thresholds. No Google auth needed, no LLM needed.
 
 - [ ] **4. Context step** — LangChain agent with `calendar_tool` + `email_tool`;
       decides on its own whether to check email; outputs
