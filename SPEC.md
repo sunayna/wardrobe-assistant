@@ -72,8 +72,9 @@ runs first.
    structured `{occasion, formality, time_of_day, indoor/outdoor}`.
 
 2. **Weather step (plain function)** — always runs, no LLM decision needed (forecast
-   is always wanted). Calls weather API for tomorrow in **Gurgaon** → maps to
-   `{recommended_fabrics, avoid_fabrics}`.
+   is always wanted). Calls weather API for tomorrow in **Gurgaon** (fixed
+   coordinates — not derived from calendar, so travel days aren't handled yet) → maps
+   to `{recommended_fabrics, avoid_fabrics}` via temperature/humidity/rain thresholds.
 
 3. **Wardrobe query step (plain function, with retry)** — queries SQLite filtered by
    occasion + fabric fit + season, excluding sarees worn/recommended within the last
@@ -120,7 +121,10 @@ rank() → deliver()`, called in order, no pausing or resuming.
   job on a paid API, and no reason to put it on this machine's limited local compute
   either (see above).
 - **SQLite** — saree catalog + wear history.
-- **Weather API** — TBD (e.g. OpenWeatherMap).
+- **Weather API** — [Open-Meteo](https://open-meteo.com), free forecast API with no
+  API key/signup at all. Chosen over OpenWeatherMap specifically to avoid another
+  key/quota to manage, given how much friction that caused with Gemini's ingestion
+  quota above.
 - No LangGraph for now — revisit only if the retry loop or confirmation step outgrow
   plain Python (see earlier discussion: LangGraph's main value here would've been the
   retry loop and pause/resume for confirmation, neither of which need a framework at
@@ -128,8 +132,6 @@ rank() → deliver()`, called in order, no pausing or resuming.
 
 ## Open decisions (not yet settled)
 
-- Weather API choice (location settled: **Gurgaon**, fixed — not derived from calendar,
-  since travel-day handling isn't in scope yet).
 - Repeat-avoidance window length (N days) — starting guess, tune later.
 - Since vision-tagging your sarees is a guess (fabric especially is hard to tell from a
   photo), do you want a review/correction step after Phase 0 ingestion, or trust the
