@@ -7,11 +7,15 @@ the data it needs exists. See SPEC.md for the full design behind each step.
 - [x] **0. Project scaffold** — repo, `.gitignore`, `SPEC.md`, `db.py` with `sarees` +
       `wear_history` tables.
 
-- [ ] **1. Google Cloud / API auth setup** — create/rename the Cloud project, enable
-      Calendar API, Gmail API, Photos Picker API, configure the OAuth consent screen
-      (External, Testing, self as test user), create a Desktop OAuth Client ID. Mostly
-      manual console work plus a small auth helper for storing/reusing tokens.
-      Prerequisite for features 2 and 3.
+- [x] **1. Google Cloud / API auth setup** — project created, Calendar API, Gmail API,
+      and Photos Picker API enabled, OAuth consent screen configured (External,
+      Testing, self as test user), Desktop OAuth Client ID created. `google_auth.py`
+      handles the auth flow and token caching — verified working against both the
+      Calendar and Gmail APIs. (Photos Picker uses its own session-based flow, reusing
+      this same OAuth client — exercised when feature 2 is built.) Also hit and fixed
+      a local machine issue: a network proxy re-signs HTTPS with a self-signed cert,
+      breaking Python's default CA trust — `setup_ssl_trust.sh` patches the venv to
+      trust it (re-run after any venv rebuild).
 
 - [ ] **2. Photo ingestion** — Picker API flow (you select the album) → Claude vision
       call per photo → writes rows into `sarees`. The actual foundation of the
