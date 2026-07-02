@@ -12,10 +12,22 @@ Source of truth is a **Google Photos album** (photos only, no metadata today).
   old Library API read scopes now hard-fail. The replacement, the **Picker API**, is
   interactive by design: you open a picker link and manually select the album/photos
   in a Google-hosted UI each time, then the script fetches just what you selected and
-  runs it through a vision-capable Claude call to extract structured tags into SQLite.
-  This fits fine with how ingestion already worked (occasional, not automatic) — it
-  just means "re-run ingestion" is always a "you click through a picker" action, never
-  a silent background scan.
+  runs it through Gemini's free tier (`gemini-2.5-flash-lite`) to extract structured
+  tags into SQLite — free, no local compute. (Originally tried a local Ollama vision
+  model instead of any API — free and fully local, but this machine only has 8GB RAM,
+  and a 4.7GB model running 99 back-to-back inferences swap-thrashed badly enough to
+  break DNS resolution and make the whole system hang. Moved tagging off-device to
+  Gemini's free tier instead.) This fits fine with how ingestion already worked
+  (occasional, not automatic) — it just means "re-run ingestion" is always a "you
+  click through a picker" action, never a silent background scan.
+
+  **Real quota discovered in practice**: despite docs advertising 1,000 req/day for
+  this model, a freshly created Cloud project's actual free-tier quota was only
+  **20 requests/day** (`generate_content_free_tier_requests`, likely because the
+  project hadn't "warmed up"). For a ~99-photo catalog this means ingestion now
+  naturally spreads across ~5 days — `ingest.py` tracks already-tagged photos and
+  skips them, and stops cleanly (rather than burning retries) when it detects the
+  daily-quota error, so you just re-run it once a day until the catalog is complete.
 
 - **Storage (SQLite), two tables:**
   ```
@@ -98,11 +110,15 @@ rank() → deliver()`, called in order, no pausing or resuming.
   and the agent construct for the one tool-calling step (context step). Photos access
   goes through the separate interactive **Picker API** flow (not a LangChain wrapper —
   it's a user-driven picker link, not something an agent calls as a tool).
-- **Claude** (via Anthropic API) — text reasoning (context/ranking steps) + vision
-  (ingestion tagging). Note: current `agent.py` in this repo uses `ChatOllama`/local
-  llama3.2 as a toy example — will need to switch to `ChatAnthropic` with a real API key
-  for this project (`.env` currently only has `OPENAI_API_KEY` + a commented-out
-  `ANTHROPIC_API_KEY`).
+- **Claude** (via Anthropic API) — text reasoning only (context/ranking steps). Needs a
+  real `ANTHROPIC_API_KEY` in `.env` (still a placeholder) before those steps are built.
+- **Gemini free tier (`gemini-2.5-flash-lite`)** — vision tagging for ingestion. Free,
+  1,000 requests/day, needs a `GEMINI_API_KEY` in `.env` (a plain API key from Google
+  AI Studio, not the OAuth client used for Calendar/Gmail/Photos). Kept separate from
+  the Claude reasoning steps since ingestion is a bulk job (one call per photo) and the
+  reasoning steps are low-volume (one or two calls a day) — no reason to put the bulk
+  job on a paid API, and no reason to put it on this machine's limited local compute
+  either (see above).
 - **SQLite** — saree catalog + wear history.
 - **Weather API** — TBD (e.g. OpenWeatherMap).
 - No LangGraph for now — revisit only if the retry loop or confirmation step outgrow

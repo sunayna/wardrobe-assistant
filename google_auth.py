@@ -10,6 +10,7 @@ TOKEN_PATH = Path(__file__).parent / "token.json"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/photospicker.mediaitems.readonly",
 ]
 
 
