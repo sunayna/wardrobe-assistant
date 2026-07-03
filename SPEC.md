@@ -84,9 +84,13 @@ runs first.
    to `{recommended_fabrics, avoid_fabrics}` via temperature/humidity/rain thresholds.
 
 3. **Wardrobe query step (plain function, with retry)** — queries SQLite filtered by
-   occasion + fabric fit + season, excluding sarees worn/recommended within the last
-   N days. If the filtered pool is empty, loosen the window and re-query in a plain
-   Python loop rather than fail outright.
+   formality closeness (±1 of the occasion's formality) and fabric fit (hard-excludes
+   anything matching weather's avoid list), excluding sarees worn/recommended within
+   the last **14 days** (starting value, tunable). If the filtered pool is empty,
+   relaxes the window first (14 → 7 → 0 days), then widens formality tolerance as a
+   last resort, rather than fail outright. Season filtering skipped for now — it's
+   largely redundant with weather's fabric recommendations, which already account for
+   the season indirectly via temperature/rain.
 
 4. **Stylist/ranking step (LLM call)** — a single `ChatAnthropic` call ranks remaining
    candidates on occasion fit + weather fit + freshness (days since last worn), returns
@@ -141,7 +145,8 @@ rank() → deliver()`, called in order, no pausing or resuming.
 
 ## Open decisions (not yet settled)
 
-- Repeat-avoidance window length (N days) — starting guess, tune later.
+- Repeat-avoidance window length — set to 14 days as a starting value, not yet tuned
+  against real usage.
 - Since vision-tagging your sarees is a guess (fabric especially is hard to tell from a
   photo), do you want a review/correction step after Phase 0 ingestion, or trust the
   auto-tags as-is?
