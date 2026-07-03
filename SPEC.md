@@ -65,11 +65,18 @@ runs first.
    wear data, not just a pending recommendation. Only prompts if there's an unconfirmed
    recommendation outstanding.
 
-1. **Context step (LangChain agent)** — a small LangChain agent with `calendar_tool`
-   and `email_tool`. It always checks tomorrow's calendar; it *decides on its own*
-   whether the event is ambiguous enough to also search email (e.g. "Dinner at
-   Priya's" → check email; "Office all-hands, formal attire" → skip email). Output:
-   structured `{occasion, formality, time_of_day, indoor/outdoor}`.
+1. **Context step (plain function + single LLM call)** — originally designed as a
+   LangChain agent that decided on its own whether to also check email for ambiguous
+   events (e.g. "Dinner at Priya's"). Simplified after testing: there's no funded
+   Anthropic account, so this runs on local `llama3.2` (free, via Ollama) — and
+   llama3.2 isn't reliable enough at multi-step tool orchestration (it skipped the
+   calendar entirely and called email with a garbage query in testing). Now: fetch
+   tomorrow's calendar deterministically in plain code (no LLM judgment on *whether*
+   to fetch), then one non-agentic classification call turns that text into
+   structured `{occasion, formality, time_of_day, indoor_outdoor}`. Email-checking is
+   dropped for now — known cost: ambiguous events like "Dinner at Priya's" get a
+   guessed formality instead of a disambiguated one. Revisit if Claude access is ever
+   funded.
 
 2. **Weather step (plain function)** — always runs, no LLM decision needed (forecast
    is always wanted). Calls weather API for tomorrow in **Gurgaon** (fixed
@@ -107,12 +114,14 @@ rank() → deliver()`, called in order, no pausing or resuming.
 
 ## Tech stack
 
-- **LangChain** — Google Calendar / Gmail tool wrappers, `ChatAnthropic` model wrapper,
-  and the agent construct for the one tool-calling step (context step). Photos access
-  goes through the separate interactive **Picker API** flow (not a LangChain wrapper —
-  it's a user-driven picker link, not something an agent calls as a tool).
-- **Claude** (via Anthropic API) — text reasoning only (context/ranking steps). Needs a
-  real `ANTHROPIC_API_KEY` in `.env` (still a placeholder) before those steps are built.
+- **LangChain** — Google Calendar / Gmail wrappers-worth of API calls (plain
+  `googleapiclient`, not LangChain tool wrappers, since the context step turned out
+  not to need agentic tool-calling — see below), `ChatOllama` for the context step.
+  Photos access goes through the separate interactive **Picker API** flow.
+- **No funded Anthropic account** — Claude was the original plan for text reasoning
+  (context/ranking steps), but there's no billing set up and Claude has no free tier.
+  Context step now runs on local `llama3.2` instead (see pipeline section above for
+  why, and the tradeoff). Ranking step's model choice is still open — see below.
 - **Gemini free tier (`gemini-2.5-flash-lite`)** — vision tagging for ingestion. Free,
   1,000 requests/day, needs a `GEMINI_API_KEY` in `.env` (a plain API key from Google
   AI Studio, not the OAuth client used for Calendar/Gmail/Photos). Kept separate from
@@ -136,9 +145,15 @@ rank() → deliver()`, called in order, no pausing or resuming.
 - Since vision-tagging your sarees is a guess (fabric especially is hard to tell from a
   photo), do you want a review/correction step after Phase 0 ingestion, or trust the
   auto-tags as-is?
-- Google API auth setup (OAuth credentials for Calendar/Gmail/Photos) — not yet
-  created. Project currently sits as the default "My First Project" in Google Cloud,
-  no APIs enabled, no OAuth client yet. Since we're staying in Testing mode (see
-  Triggers), setup is: create/rename a project → enable Calendar API, Gmail API,
-  Photos Picker API → configure OAuth consent screen (External, Testing, add your own
-  account as a test user) → create an OAuth Client ID (Desktop app type).
+- Ranking step's model choice (Claude was the plan, no funded account exists) — local
+  `llama3.2`, reuse Gemini free tier, or fund Anthropic. Ranking is a single
+  synthesis call (no tool orchestration), so llama3.2 may be reliable enough here even
+  though it wasn't for the context step's multi-step tool-use.
+
+## Local dev environment
+
+Project lives at `~/Developer/wardrobe-assistant`, not under `~/Documents` — moved
+after discovering `~/Documents` is iCloud-synced, and iCloud evicting `venv/`'s
+thousands of small package files to cloud-only caused unpredictable multi-minute
+hangs on file reads (looked like network/proxy issues at first, wasn't). Keep this
+project outside any iCloud/cloud-synced folder.

@@ -28,16 +28,22 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       Gurgaon, mapped to `{recommended_fabrics, avoid_fabrics}` via
       temperature/humidity/rain thresholds. No Google auth needed, no LLM needed.
 
-- [ ] **4. Context step** — LangChain agent with `calendar_tool` + `email_tool`;
-      decides on its own whether to check email; outputs
-      `{occasion, formality, time_of_day, indoor/outdoor}`. Depends on feature 1.
+- [x] **4. Context step** — originally planned as a LangChain agent deciding on its
+      own whether to check email for ambiguous events. Simplified: no funded
+      Anthropic account, so this runs on local `llama3.2`, which wasn't reliable
+      enough at multi-step tool-use (skipped the calendar, called email with a
+      garbage query in testing). Now a plain deterministic calendar fetch + one
+      non-agentic classification call → `{occasion, formality, time_of_day,
+      indoor_outdoor}`. Known cost: ambiguous events (e.g. "Dinner at Priya's") get a
+      guessed formality instead of a disambiguated one. See SPEC.md.
 
 - [ ] **5. Wardrobe query step** — SQLite query filtered by occasion + fabric + season,
       excludes recently worn/recommended, retries with a relaxed window if empty.
       Depends on features 2 and 3 for real data to query against.
 
-- [ ] **6. Ranking step** — single Claude call ranks candidates on occasion fit +
-      weather fit + freshness, returns top pick + 2 alternates with reasoning.
+- [ ] **6. Ranking step** — single LLM call ranks candidates on occasion fit +
+      weather fit + freshness, returns top pick + 2 alternates with reasoning. Model
+      choice still open (see SPEC.md) — no funded Anthropic account.
       Depends on features 3, 4, 5 for real inputs.
 
 - [ ] **7. Confirm step** — chat-driven update of `wear_history` (did you wear
