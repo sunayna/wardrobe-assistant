@@ -1,5 +1,6 @@
 langchain
 langchain-anthropic
+langchain-ollama
 google-auth
 google-auth-oauthlib
 google-api-python-client
