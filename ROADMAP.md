@@ -22,7 +22,9 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       working; data population is ongoing — Gemini's real free-tier quota turned out
       to be 20 req/day (not the 1,000 advertised), so tagging all ~99 photos spreads
       across several days. Already-tagged photos are skipped automatically on re-run.
-      6/99 tagged so far.
+      Quota resets at midnight Pacific = **1:30 PM IST**, not midnight India time -
+      running before that reconnects to the still-exhausted previous window. 16/99
+      tagged so far.
 
 - [x] **3. Weather step** — Open-Meteo (free, no API key) for tomorrow's forecast in
       Gurgaon, mapped to `{recommended_fabrics, avoid_fabrics}` via

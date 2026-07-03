@@ -144,7 +144,10 @@ def tag_image(image_bytes: bytes, mime_type: str) -> dict:
     )
     resp.raise_for_status()
     raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return json.loads(raw)
+    # response_mime_type=application/json usually gives pure JSON, but occasionally
+    # Gemini appends trailing content anyway - extract just the object to be safe.
+    start, end = raw.find("{"), raw.rfind("}")
+    return json.loads(raw[start : end + 1])
 
 
 def upsert_saree(photo_id: str, tags: dict) -> None:
