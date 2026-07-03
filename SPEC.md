@@ -92,9 +92,15 @@ runs first.
    largely redundant with weather's fabric recommendations, which already account for
    the season indirectly via temperature/rain.
 
-4. **Stylist/ranking step (LLM call)** — a single `ChatAnthropic` call ranks remaining
-   candidates on occasion fit + weather fit + freshness (days since last worn), returns
-   top pick + 2 alternates with reasoning.
+4. **Stylist/ranking step (LLM call)** — a single local `llama3.2` call ranks
+   remaining candidates on occasion fit + weather fit + freshness (days since last
+   worn), returns top pick + 2 alternates with reasoning. Since this is one
+   synthesis call rather than multi-step tool-use, llama3.2 is reliable enough here
+   (unlike the context step's original agentic design) — but it still can't reliably
+   produce nested JSON (invented its own broken shape when asked, e.g. `{1: "..."}`
+   instead of `{"index": 1}`). Uses a flat, labeled plain-text format instead
+   (`TOP: <n>`, `TOP_REASON: ...`, `ALT: <n>`, `ALT_REASON: ...`), parsed with simple
+   line matching — much more robust for a small model than JSON.
 
 5. **Output** — delivered as a chat reply (see Triggers). Writes
    `last_recommended_date` to `wear_history` for the chosen `photo_id` — this becomes
@@ -124,8 +130,8 @@ rank() → deliver()`, called in order, no pausing or resuming.
   Photos access goes through the separate interactive **Picker API** flow.
 - **No funded Anthropic account** — Claude was the original plan for text reasoning
   (context/ranking steps), but there's no billing set up and Claude has no free tier.
-  Context step now runs on local `llama3.2` instead (see pipeline section above for
-  why, and the tradeoff). Ranking step's model choice is still open — see below.
+  Both the context and ranking steps now run on local `llama3.2` instead (see
+  pipeline section above for why, and the tradeoffs of each).
 - **Gemini free tier (`gemini-2.5-flash-lite`)** — vision tagging for ingestion. Free,
   1,000 requests/day, needs a `GEMINI_API_KEY` in `.env` (a plain API key from Google
   AI Studio, not the OAuth client used for Calendar/Gmail/Photos). Kept separate from
@@ -150,10 +156,6 @@ rank() → deliver()`, called in order, no pausing or resuming.
 - Since vision-tagging your sarees is a guess (fabric especially is hard to tell from a
   photo), do you want a review/correction step after Phase 0 ingestion, or trust the
   auto-tags as-is?
-- Ranking step's model choice (Claude was the plan, no funded account exists) — local
-  `llama3.2`, reuse Gemini free tier, or fund Anthropic. Ranking is a single
-  synthesis call (no tool orchestration), so llama3.2 may be reliable enough here even
-  though it wasn't for the context step's multi-step tool-use.
 
 ## Local dev environment
 

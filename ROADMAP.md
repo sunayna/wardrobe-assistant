@@ -48,10 +48,13 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       real context/weather output and the 16 tagged sarees so far - correctly
       filtered to 3 cotton candidates for a hot/humid/rainy casual day.
 
-- [ ] **6. Ranking step** — single LLM call ranks candidates on occasion fit +
-      weather fit + freshness, returns top pick + 2 alternates with reasoning. Model
-      choice still open (see SPEC.md) — no funded Anthropic account.
-      Depends on features 3, 4, 5 for real inputs.
+- [x] **6. Ranking step** — single local `llama3.2` call ranks candidates on
+      occasion fit + weather fit + freshness, returns top pick + 2 alternates with
+      reasoning. Had to drop JSON output entirely — llama3.2 invented its own broken
+      nested structure when asked for it. Switched to a flat, labeled plain-text
+      format (`TOP: <n>`, `TOP_REASON: ...`, etc.), parsed with simple line matching
+      instead. Tested end-to-end against real data — sensible top pick + alternates
+      with reasonable justifications.
 
 - [ ] **7. Confirm step** — chat-driven update of `wear_history` (did you wear
       yesterday's pick?), runs first in every session per SPEC.md's ordering.
