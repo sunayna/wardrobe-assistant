@@ -39,9 +39,14 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       indoor_outdoor}`. Known cost: ambiguous events (e.g. "Dinner at Priya's") get a
       guessed formality instead of a disambiguated one. See SPEC.md.
 
-- [ ] **5. Wardrobe query step** — SQLite query filtered by occasion + fabric + season,
-      excludes recently worn/recommended, retries with a relaxed window if empty.
-      Depends on features 2 and 3 for real data to query against.
+- [x] **5. Wardrobe query step** — SQLite query filtered by formality closeness (±1,
+      widened if needed) and avoid-fabrics (hard filter, substring match against
+      weather's list), excludes sarees worn/recommended within a 14-day window.
+      Relaxes the window first (14 → 7 → 0 days), then formality tolerance, if the
+      pool comes up empty. Season filtering skipped for now - weather's fabric
+      recommendations already capture most of that signal. Tested end-to-end against
+      real context/weather output and the 16 tagged sarees so far - correctly
+      filtered to 3 cotton candidates for a hot/humid/rainy casual day.
 
 - [ ] **6. Ranking step** — single LLM call ranks candidates on occasion fit +
       weather fit + freshness, returns top pick + 2 alternates with reasoning. Model
