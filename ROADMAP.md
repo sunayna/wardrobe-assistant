@@ -56,8 +56,12 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       instead. Tested end-to-end against real data — sensible top pick + alternates
       with reasonable justifications.
 
-- [ ] **7. Confirm step** — chat-driven update of `wear_history` (did you wear
-      yesterday's pick?), runs first in every session per SPEC.md's ordering.
+- [x] **7. Confirm step** — finds the most recent unresolved recommendation (a
+      `wear_history` row whose `last_recommended_date` doesn't yet match
+      `last_worn_date`), asks whether you wore it, updates `last_worn_date` /
+      `wear_count` if yes. No-op if nothing's pending. Also adds
+      `record_recommendation()`, the write side of the same lifecycle — used by
+      feature 8's output step. Tested both the yes and no paths against seeded data.
 
 - [ ] **8. End-to-end wiring** — chat entry point that runs
       `confirm_today() → context() → weather() → query_wardrobe() → rank() → deliver()`
