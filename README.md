@@ -35,13 +35,27 @@ and [SPEC.md](SPEC.md) for the full design and the reasoning behind it.
 
 ## Usage
 
+**Telegram bot** (the actual day-to-day interface):
+1. Create a bot via [@BotFather](https://t.me/BotFather) (`/newbot`), add the token
+   to `.env` as `TELEGRAM_BOT_TOKEN`.
+2. Copy `launchd/com.wardrobeassistant.telegrambot.plist` to
+   `~/Library/LaunchAgents/`, then load it so the bot runs continuously without a
+   terminal open:
+   ```
+   cp launchd/com.wardrobeassistant.telegrambot.plist ~/Library/LaunchAgents/
+   launchctl load ~/Library/LaunchAgents/com.wardrobeassistant.telegrambot.plist
+   ```
+3. Message your bot `/wardrobe` any time you want tomorrow's recommendation. Other
+   commands: `/more` (another option from today's matches), `/correct [n]` (fix a
+   wrong tag on the nth saree shown this session).
+
+**CLI** (for testing, or if you'd rather not use Telegram):
 ```
 ./venv/bin/python main.py
 ```
-
 Confirms whether you wore the last recommendation (if one's due), figures out
 tomorrow's occasion from your calendar, checks the weather, filters your catalog,
-and prints a top pick + two alternates with reasoning. Run it once a day.
+and prints a top pick + two alternates with reasoning.
 
 ## Other scripts
 

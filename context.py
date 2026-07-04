@@ -49,30 +49,16 @@ def get_tomorrow_calendar_text(tomorrow: datetime.date) -> str | None:
     return "\n".join(lines)
 
 
-def resolve_empty_calendar_text(tomorrow: datetime.date) -> str:
-    """Calendar being empty doesn't mean nothing's happening - always ask rather than
-    silently assume. Falls back to a weekday-aware default (school/work vs. day off)
-    only if you don't answer."""
-    prompt = (
-        f"No events found on your calendar for tomorrow "
-        f"({tomorrow.strftime('%A, %b %d')}). Is there anything planned? "
-        "(press Enter if nothing special) "
-    )
-    answer = input(prompt).strip()
-    if answer:
-        return answer
+def default_calendar_text(tomorrow: datetime.date) -> str:
+    """Weekday-aware fallback for when the calendar is empty AND nobody answered
+    when asked - never used silently, only after giving the user a chance to say
+    what's actually happening (see get_context / telegram_bot.py)."""
     is_weekday = tomorrow.weekday() < 5  # Monday=0 .. Sunday=6
     if is_weekday:
         return "Regular school/work day, nothing special planned."
     return "Regular day off, nothing special planned, staying at home."
 
 
-# Deciding whether to also check email for context was originally meant to be an
-# agentic tool-use decision, but llama3.2 (the free local model we're using here,
-# since there's no funded Anthropic account) isn't reliable enough at multi-step
-# tool orchestration - it skipped the calendar and called email with a garbage query
-# in testing. Simplified to a single, non-agentic classification call over calendar
-# text only. See SPEC.md.
 CLASSIFY_PROMPT = """Given tomorrow's plans below, classify the occasion for someone
 deciding what saree to wear. Respond with ONLY a JSON object, no other text, with
 exactly these four fields:
@@ -90,12 +76,7 @@ VALID_TIMES_OF_DAY = {"morning", "afternoon", "evening", "night"}
 VALID_INDOOR_OUTDOOR = {"indoor", "outdoor", "mixed"}
 
 
-def get_context() -> OccasionContext:
-    tomorrow = get_tomorrow_date()
-    calendar_text = get_tomorrow_calendar_text(tomorrow)
-    if calendar_text is None:
-        calendar_text = resolve_empty_calendar_text(tomorrow)
-
+def classify_context(calendar_text: str) -> OccasionContext:
     model = ChatOllama(model="llama3.2", temperature=0)
     response = model.invoke(CLASSIFY_PROMPT.format(calendar_text=calendar_text))
     raw = response.content
@@ -110,6 +91,24 @@ def get_context() -> OccasionContext:
         data["indoor_outdoor"] = "indoor"
 
     return OccasionContext(**data)
+
+
+def get_context() -> OccasionContext:
+    """CLI entry point - prompts via input() directly. For other front-ends (e.g. the
+    Telegram bot), use get_tomorrow_date/get_tomorrow_calendar_text/
+    default_calendar_text/classify_context directly with your own way of asking."""
+    tomorrow = get_tomorrow_date()
+    calendar_text = get_tomorrow_calendar_text(tomorrow)
+    if calendar_text is None:
+        prompt = (
+            f"No events found on your calendar for tomorrow "
+            f"({tomorrow.strftime('%A, %b %d')}). Is there anything planned? "
+            "(press Enter if nothing special) "
+        )
+        answer = input(prompt).strip()
+        calendar_text = answer or default_calendar_text(tomorrow)
+
+    return classify_context(calendar_text)
 
 
 if __name__ == "__main__":

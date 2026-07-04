@@ -118,8 +118,8 @@ already passed before it's treated as confirmable.
 
 ## Triggers
 
-- **On-demand only**: you ask in chat ("what should I wear tomorrow?"), the script
-  runs and replies. No unattended scheduled job.
+- **On-demand only**: you ask in chat, the pipeline runs and replies. No unattended
+  scheduled job.
 - Why: Gmail/Calendar/Photos access all count as Google "sensitive" scopes, and an
   app in Google Cloud's default "Testing" mode gets its refresh tokens auto-expired
   after 7 days. A silent daily cron job would break weekly needing a browser
@@ -128,6 +128,12 @@ already passed before it's treated as confirmable.
   in the background. Getting non-expiring tokens would require Google's app
   verification review (privacy policy, possibly a demo video, weeks of turnaround) —
   not worth it for a personal single-user script right now.
+- **Interface: a Telegram bot** (`telegram_bot.py`), not a CLI or a hosted web app.
+  Considered Vercel for a visual UI, but a cloud deployment would need Ollama and
+  SQLite off this machine (no local compute/DB access from serverless functions) —
+  exactly the "free and local" architecture this project was built around. Telegram
+  keeps everything running on this machine; it's just the remote control. Runs
+  continuously via a macOS `launchd` agent rather than needing a terminal kept open.
 
 ## Tech stack
 

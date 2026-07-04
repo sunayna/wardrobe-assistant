@@ -1,7 +1,9 @@
 import base64
 import json
+import mimetypes
 import os
 import time
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
@@ -13,6 +15,8 @@ load_dotenv()
 
 PICKER_BASE = "https://photospicker.googleapis.com/v1"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+
+PHOTOS_DIR = Path(__file__).parent / "photos"
 
 TAGGING_PROMPT = """This is a photo of a saree (an Indian garment). Look at it and
 respond with ONLY a JSON object, no other text, in exactly this shape:
@@ -111,6 +115,24 @@ def download_image_bytes(creds, base_url: str) -> bytes:
     return resp.content
 
 
+def photo_path(photo_id: str, mime_type: str) -> Path:
+    ext = mimetypes.guess_extension(mime_type) or ".jpg"
+    return PHOTOS_DIR / f"{photo_id}{ext}"
+
+
+def has_local_photo(photo_id: str) -> Path | None:
+    """The Picker API's baseUrl only works within its original session - once that
+    session ends, a photo can never be re-fetched by photo_id again. So this is
+    saved locally at ingestion time, the only point the bytes are ever reachable."""
+    matches = list(PHOTOS_DIR.glob(f"{photo_id}.*"))
+    return matches[0] if matches else None
+
+
+def save_photo_locally(photo_id: str, image_bytes: bytes, mime_type: str) -> None:
+    PHOTOS_DIR.mkdir(exist_ok=True)
+    photo_path(photo_id, mime_type).write_bytes(image_bytes)
+
+
 # Gemini free tier for gemini-2.5-flash-lite allows 15 requests/minute. Space calls
 # out so we stay under that instead of bursting and hitting 429s.
 GEMINI_MIN_INTERVAL = 4.5
@@ -200,12 +222,21 @@ def run_ingestion() -> None:
         filename = item["mediaFile"].get("filename", photo_id)
         print(f"[{i}/{len(media_items)}] {filename} ...", end=" ", flush=True)
         if already_tagged(photo_id):
-            print("already tagged, skipping")
+            if has_local_photo(photo_id):
+                print("already tagged, skipping")
+            else:
+                try:
+                    image_bytes = with_retries(download_image_bytes, creds, base_url)
+                    save_photo_locally(photo_id, image_bytes, mime_type)
+                    print("already tagged, backfilled local photo")
+                except Exception as e:
+                    print(f"already tagged, photo backfill FAILED: {e}")
             continue
         try:
             image_bytes = with_retries(download_image_bytes, creds, base_url)
             tags = with_retries(tag_image, image_bytes, mime_type)
             upsert_saree(photo_id, tags)
+            save_photo_locally(photo_id, image_bytes, mime_type)
             print(f"tagged: {tags}")
         except DailyQuotaExhausted:
             tagged_count = sum(1 for it in media_items if already_tagged(it["id"]))
