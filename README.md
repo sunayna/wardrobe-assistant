@@ -33,7 +33,17 @@ and [SPEC.md](SPEC.md) for the full design and the reasoning behind it.
 6. Local vision/reasoning models run via [Ollama](https://ollama.com) — install it,
    then `ollama pull llama3.2`.
 
-## What's runnable today
+## Usage
+
+```
+./venv/bin/python main.py
+```
+
+Confirms whether you wore the last recommendation (if one's due), figures out
+tomorrow's occasion from your calendar, checks the weather, filters your catalog,
+and prints a top pick + two alternates with reasoning. Run it once a day.
+
+## Other scripts
 
 - `./venv/bin/python db.py` — initializes `wardrobe.db` (SQLite) with the `sarees`
   and `wear_history` tables.
@@ -41,9 +51,6 @@ and [SPEC.md](SPEC.md) for the full design and the reasoning behind it.
   album (Google Photos Picker), tags each photo, and stores results in `sarees`.
   Free-tier quota limits this to ~20 photos/day — re-run daily until your catalog
   is fully tagged; already-tagged photos are skipped automatically.
-- `./venv/bin/python weather.py` — prints tomorrow's forecast for Gurgaon and the
-  fabric recommendations derived from it.
-- `./venv/bin/python context.py` — prints tomorrow's occasion classification, based
-  on your calendar (asks you directly if nothing's on it).
-
-Nothing end-to-end yet — that's the last item on the roadmap.
+- `./venv/bin/python weather.py`, `context.py`, `wardrobe.py`, `ranking.py`,
+  `confirm.py` — the individual pipeline steps `main.py` wires together; each is
+  runnable on its own for testing.
