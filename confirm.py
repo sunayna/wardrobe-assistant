@@ -6,8 +6,11 @@ from db import get_connection
 
 def get_pending_recommendation() -> dict | None:
     """Returns the most recently recommended saree if it hasn't been confirmed yet
-    (wear_history.last_worn_date doesn't already match last_recommended_date), or
-    None if there's nothing pending."""
+    (wear_history.last_worn_date doesn't already match last_recommended_date) AND
+    that date has actually arrived - a recommendation for tomorrow isn't confirmable
+    yet, so it shouldn't be asked about until tomorrow itself. Returns None if
+    there's nothing pending."""
+    today = datetime.date.today().isoformat()
     conn = get_connection()
     conn.row_factory = sqlite3.Row
     row = conn.execute(
@@ -16,10 +19,12 @@ def get_pending_recommendation() -> dict | None:
         FROM wear_history w
         JOIN sarees s ON s.photo_id = w.photo_id
         WHERE w.last_recommended_date IS NOT NULL
+          AND w.last_recommended_date <= ?
           AND (w.last_worn_date IS NULL OR w.last_worn_date != w.last_recommended_date)
         ORDER BY w.last_recommended_date DESC
         LIMIT 1
-        """
+        """,
+        (today,),
     ).fetchone()
     conn.close()
     return dict(row) if row else None
