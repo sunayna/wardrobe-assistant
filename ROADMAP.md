@@ -23,8 +23,11 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       to be 20 req/day (not the 1,000 advertised), so tagging all ~99 photos spreads
       across several days. Already-tagged photos are skipped automatically on re-run.
       Quota resets at midnight Pacific = **1:30 PM IST**, not midnight India time -
-      running before that reconnects to the still-exhausted previous window. 16/99
-      tagged so far.
+      running before that reconnects to the still-exhausted previous window. Now also
+      saves each photo locally (`photos/`) at ingestion time — the Picker API's
+      baseUrl only works within its original session, so this is the only point the
+      image bytes are ever reachable; needed for feature 9's photo-in-chat replies.
+      17/99 tagged so far.
 
 - [x] **3. Weather step** — Open-Meteo (free, no API key) for tomorrow's forecast in
       Gurgaon, mapped to `{recommended_fabrics, avoid_fabrics}` via
@@ -72,3 +75,30 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       pick, today) — added a check that the recommended date has actually passed
       before it's confirmable. Ran the full pipeline for real and got a sensible
       end-to-end recommendation.
+
+- [x] **9. Telegram bot interface** — `telegram_bot.py`, a plain `requests`-based
+      long-polling bot (no bot framework — consistent with this project's style of
+      direct API calls). Chose Telegram over a hosted web app (e.g. Vercel)
+      specifically to avoid undoing this project's "free and local" architecture —
+      a cloud deployment would need to move the local Ollama models and SQLite DB
+      off-device. `/wardrobe` runs the full pipeline conversationally (asks for
+      calendar/confirm answers as chat messages instead of terminal `input()`);
+      `/more` shows another candidate from today's already-filtered pool without
+      recomputing anything; `/correct [n]` lets you fix a wrong tag on the nth
+      saree shown this session. Sends the actual saree photo (not just text) using
+      the local files saved during ingestion. Auto-starts via a macOS `launchd`
+      agent (`~/Library/LaunchAgents/com.wardrobeassistant.telegrambot.plist`), so
+      it runs continuously without a manually-kept-open terminal.
+
+      Required refactoring `context.py` (`get_tomorrow_calendar_text` /
+      `default_calendar_text` / `classify_context` split into reusable pieces, since
+      the CLI's blocking `input()` doesn't map onto a bot's "ask now, get the reply
+      as a separate incoming message later" flow).
+
+      Two real bugs found while building this: (1) this network's proxy cuts
+      long-held HTTPS connections, causing repeated read timeouts on Telegram's
+      default 30s long-poll — fixed by shortening it to 8s; (2) Telegram's typing
+      indicator only lasts ~5s, so a single ping went silent during longer LLM
+      calls — fixed with a background thread that refreshes it every 4s for the
+      duration of the actual work, plus explicit "thinking" text messages so it's
+      never silently unclear that a response is coming.

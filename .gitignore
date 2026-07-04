@@ -7,3 +7,5 @@ credentials.json
 token.json
 .ca-bundle.pem
 .ca-bundle-clean.pem
+photos/
+telegram_bot.log
