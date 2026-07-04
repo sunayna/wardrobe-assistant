@@ -63,6 +63,12 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       `record_recommendation()`, the write side of the same lifecycle — used by
       feature 8's output step. Tested both the yes and no paths against seeded data.
 
-- [ ] **8. End-to-end wiring** — chat entry point that runs
+- [x] **8. End-to-end wiring** — `main.py` runs
       `confirm_today() → context() → weather() → query_wardrobe() → rank() → deliver()`
-      as one flow. Ties features 1–7 together into the actual assistant.
+      as one flow, then `record_recommendation()`s the pick for tomorrow. Ties
+      features 1–7 together into the actual assistant. Found and fixed a real bug
+      while testing: `confirm_today()` was willing to ask about a recommendation for
+      a date that hadn't arrived yet (e.g. asking "did you wear it" about tomorrow's
+      pick, today) — added a check that the recommended date has actually passed
+      before it's confirmable. Ran the full pipeline for real and got a sensible
+      end-to-end recommendation.

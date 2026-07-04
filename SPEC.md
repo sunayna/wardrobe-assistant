@@ -109,8 +109,12 @@ runs first.
    `last_recommended_date` to `wear_history` for the chosen `photo_id` — this becomes
    tomorrow's pending confirmation, resolved by step 0 of the next run.
 
-Straight-line script: `confirm_today() → context() → weather() → query_wardrobe() →
-rank() → deliver()`, called in order, no pausing or resuming.
+Straight-line script (`main.py`): `confirm_today() → context() → weather() →
+query_wardrobe() → rank() → deliver()`, called in order, no pausing or resuming.
+Real bug found while wiring this up: `confirm_today()` was willing to ask about a
+recommendation for a date that hadn't happened yet (e.g. asking "did you wear it"
+about tomorrow's pick, today) — fixed by requiring the recommended date to have
+already passed before it's treated as confirmable.
 
 ## Triggers
 
