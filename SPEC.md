@@ -63,7 +63,10 @@ runs first.
    previous run: did you wear it? Updates `wear_history.last_worn_date` / `wear_count`
    for that `photo_id`. Runs before anything else, so every later step sees accurate
    wear data, not just a pending recommendation. Only prompts if there's an unconfirmed
-   recommendation outstanding.
+   recommendation outstanding — detected by `last_worn_date` not yet matching
+   `last_recommended_date` on the most recently recommended saree. `confirm.py` also
+   holds `record_recommendation()`, the write side of this same lifecycle, called by
+   the output step (feature 8) once a saree is actually recommended.
 
 1. **Context step (plain function + single LLM call)** — originally designed as a
    LangChain agent that decided on its own whether to also check email for ambiguous
