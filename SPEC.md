@@ -116,6 +116,18 @@ recommendation for a date that hadn't happened yet (e.g. asking "did you wear it
 about tomorrow's pick, today) — fixed by requiring the recommended date to have
 already passed before it's treated as confirmable.
 
+## Multi-day planning (`/plan`)
+
+Alongside the daily "tomorrow" flow, `/plan` handles an arbitrary future date + a
+directly-stated occasion (e.g. "what should I wear for the wedding next Saturday").
+Reuses the same query→rank→deliver→record logic as `/wardrobe` — the only difference
+is *where the inputs come from*: `/wardrobe` derives occasion from the calendar and
+date from "always tomorrow"; `/plan` asks for both directly instead. Date parsing
+(`dateparse.py`) is pure stdlib, no new dependency — weekday names, "today"/
+"tomorrow", and common explicit formats. Bounded by Open-Meteo's forecast range
+(16 days) — planning further out than that has no weather to base fabric choice on,
+so it's rejected with a clear message rather than silently guessing.
+
 ## Triggers
 
 - **On-demand only**: you ask in chat, the pipeline runs and replies. No unattended

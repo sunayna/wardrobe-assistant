@@ -102,3 +102,32 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       calls — fixed with a background thread that refreshes it every 4s for the
       duration of the actual work, plus explicit "thinking" text messages so it's
       never silently unclear that a response is coming.
+
+- [x] **10. Multi-day planning + bot UX polish**
+      - `/plan` — like `/wardrobe` but for an arbitrary future date + a directly
+        stated occasion, instead of always tomorrow + whatever's on the calendar
+        (e.g. "what should I wear for the wedding next Saturday"). Added
+        `dateparse.py` (pure stdlib, no new dependency) handling weekday names
+        ("next Saturday", "this Friday" — treated the same, both meaning the next
+        upcoming occurrence), "today"/"tomorrow", and common explicit date formats.
+        `weather.py`'s `get_weather_constraints()` now takes an optional
+        `target_date` (Open-Meteo forecasts up to 16 days out, plenty for this).
+        Refactored the query→rank→deliver→record sequence out of `run_wardrobe_flow`
+        into a shared `recommend_and_deliver()` so `/wardrobe` and `/plan` don't
+        duplicate that logic.
+      - Reply-keyboard buttons (Yes/No for confirm, a persistent menu of
+        `/wardrobe /plan /more /correct /help` after every flow ends) instead of
+        expecting typed commands - addresses "how do I keep track of all these
+        commands."
+      - Registered commands with Telegram's `setMyCommands` so they also show in
+        the client's own `/` autocomplete, plus a `/help` command as a backup.
+      - Redesigned `/correct`: was crude (typed `field: value` text, and the menu
+        button always defaulted to correcting option 1 since it sends bare
+        `/correct` with no index). Now a proper step-by-step button flow — pick
+        which saree (buttons show fabric/color for each), pick which field
+        (buttons), then just type the new value.
+      - `/clrscr` — clears the bot's own messages from the chat. Real platform
+        limit: Telegram never lets a bot delete messages the *user* sent in a
+        private chat, only its own — the command is upfront about that.
+      - Generic/unrecognized messages now get a friendly button prompt ("here's
+        what I can help with") instead of being silently dropped.
