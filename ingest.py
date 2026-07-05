@@ -46,12 +46,19 @@ def wait_for_selection(creds, session: dict) -> dict:
     session_id = session["id"]
     poll_interval = float(session.get("pollingConfig", {}).get("pollInterval", "2s").rstrip("s"))
     while True:
-        resp = requests.get(
-            f"{PICKER_BASE}/sessions/{session_id}",
-            headers={"Authorization": f"Bearer {creds.token}"},
-        )
-        resp.raise_for_status()
-        session = resp.json()
+        try:
+            resp = requests.get(
+                f"{PICKER_BASE}/sessions/{session_id}",
+                headers={"Authorization": f"Bearer {creds.token}"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            session = resp.json()
+        except requests.exceptions.RequestException:
+            # This network drops long-lived connections occasionally - a poll
+            # failing shouldn't crash the whole run while you're mid-selection.
+            time.sleep(poll_interval)
+            continue
         if session.get("mediaItemsSet"):
             return session
         time.sleep(poll_interval)
