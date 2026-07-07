@@ -115,19 +115,31 @@ the data it needs exists. See SPEC.md for the full design behind each step.
         Refactored the query→rank→deliver→record sequence out of `run_wardrobe_flow`
         into a shared `recommend_and_deliver()` so `/wardrobe` and `/plan` don't
         duplicate that logic.
-      - Reply-keyboard buttons (Yes/No for confirm, a persistent menu of
-        `/wardrobe /plan /more /correct /help` after every flow ends) instead of
-        expecting typed commands - addresses "how do I keep track of all these
-        commands."
+      - Reply-keyboard buttons (Yes/No for confirm, a persistent menu after every
+        flow ends) instead of expecting typed commands - addresses "how do I keep
+        track of all these commands." Button labels are plain language ("What to
+        wear tomorrow", "Fix a tag", etc.), translated to the real command
+        internally (`LABEL_TO_COMMAND`) - not raw slash syntax shown to the user.
       - Registered commands with Telegram's `setMyCommands` so they also show in
-        the client's own `/` autocomplete, plus a `/help` command as a backup.
+        the client's own `/` autocomplete (that one's a platform convention that
+        does use real command names, separate from the custom buttons), plus a
+        `/help` command as a backup.
       - Redesigned `/correct`: was crude (typed `field: value` text, and the menu
         button always defaulted to correcting option 1 since it sends bare
         `/correct` with no index). Now a proper step-by-step button flow — pick
         which saree (buttons show fabric/color for each), pick which field
         (buttons), then just type the new value.
-      - `/clrscr` — clears the bot's own messages from the chat. Real platform
-        limit: Telegram never lets a bot delete messages the *user* sent in a
-        private chat, only its own — the command is upfront about that.
       - Generic/unrecognized messages now get a friendly button prompt ("here's
         what I can help with") instead of being silently dropped.
+      - Added `/clrscr` (clear the bot's own messages), then removed it after
+        deciding it wasn't useful enough to keep - Telegram doesn't let a bot
+        delete the *user's* messages in a private chat anyway, only its own, so
+        it only ever cleared half a conversation.
+      - Main menu buttons now show plain language ("What to wear tomorrow", "Fix
+        a tag") instead of raw slash syntax, mapped back to the real command
+        internally (`LABEL_TO_COMMAND`).
+      - Replaced the dry "thinking it through, this can take a bit since it runs
+        locally" status text with a rotating set of saree-themed lines
+        ("Draping through the possibilities...", "Consulting the silk
+        council...", etc.) - shown at the start of `/wardrobe`/`/plan`, after
+        answering the confirm/calendar questions, and while the LLM ranks.
