@@ -1,4 +1,5 @@
 import os
+import random
 import sqlite3
 import threading
 import time
@@ -31,21 +32,22 @@ CORRECTABLE_FIELDS = {"fabric", "weight", "color", "occasion_tags", "formality",
 # doesn't need to survive a restart - it's just "what did we just talk about."
 chat_state: dict[str, dict] = {}
 
-# Message IDs the bot itself has sent, per chat - so /clrscr can delete them. Telegram
-# only lets a bot delete its own messages, never the other party's, so this can only
-# ever clear my replies, not what you typed.
-sent_message_ids: dict[str, list[int]] = {}
 
+# Friendly button labels mapping to the actual commands underneath - tapping shows
+# plain language, not slash syntax, but routes the same as typing the command.
+# (Telegram's own "/" autocomplete still lists the real command names - that's a
+# platform convention we don't control, separate from these custom buttons.)
+LABEL_TO_COMMAND = {
+    "What to wear tomorrow": "/wardrobe",
+    "Plan ahead": "/plan",
+    "Show another option": "/more",
+    "Fix a tag": "/correct",
+    "Help": "/help",
+}
 
-def _track_sent(chat_id, resp: requests.Response) -> None:
-    data = resp.json()
-    if data.get("ok"):
-        sent_message_ids.setdefault(str(chat_id), []).append(data["result"]["message_id"])
-
-
-# Always-visible menu of the main commands, so you don't have to remember them -
-# tapping a button just sends that text, same as typing it.
-MAIN_MENU = [["/wardrobe", "/plan"], ["/more", "/correct"], ["/help"]]
+# Always-visible menu, so you don't have to remember any commands - tapping a
+# button sends its label, which gets translated to the real command before dispatch.
+MAIN_MENU = [["What to wear tomorrow", "Plan ahead"], ["Show another option", "Fix a tag"], ["Help"]]
 
 
 def build_reply_markup(buttons: list[list[str]], one_time: bool) -> dict:
@@ -60,12 +62,32 @@ def send_message(chat_id, text: str, keyboard: list[list[str]] | None = None, on
     payload = {"chat_id": chat_id, "text": text}
     if keyboard is not None:
         payload["reply_markup"] = build_reply_markup(keyboard, one_time)
-    resp = requests.post(f"{API}/sendMessage", json=payload, timeout=15)
-    _track_sent(chat_id, resp)
+    requests.post(f"{API}/sendMessage", json=payload, timeout=15)
 
 
 def send_typing(chat_id) -> None:
     requests.post(f"{API}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=15)
+
+
+# Rotates so it's not the same line every time - replaces the old dry "this can
+# take a bit since it runs locally" style messaging.
+STATUS_MESSAGES = [
+    "Draping through the possibilities...",
+    "Untangling the pallu...",
+    "Consulting the silk council...",
+    "Matching blouses and moods...",
+    "Doing a wardrobe recce...",
+    "Getting my drape on...",
+    "Six yards of thinking...",
+    "Reticulating pleats...",
+    "Convincing the weather to cooperate...",
+    "Asking the closet nicely...",
+    "Buffering... but make it fashion...",
+]
+
+
+def send_status(chat_id) -> None:
+    send_message(chat_id, random.choice(STATUS_MESSAGES))
 
 
 @contextmanager
@@ -90,28 +112,12 @@ def keep_typing(chat_id):
 
 def send_photo(chat_id, photo_path, caption: str) -> None:
     with open(photo_path, "rb") as f:
-        resp = requests.post(
+        requests.post(
             f"{API}/sendPhoto",
             data={"chat_id": chat_id, "caption": caption},
             files={"photo": f},
             timeout=30,
         )
-    _track_sent(chat_id, resp)
-
-
-def run_clrscr_flow(chat_id) -> None:
-    message_ids = sent_message_ids.pop(str(chat_id), [])
-    for message_id in message_ids:
-        try:
-            requests.post(f"{API}/deleteMessage", json={"chat_id": chat_id, "message_id": message_id}, timeout=15)
-        except requests.exceptions.RequestException:
-            pass  # message too old to delete, or already gone - not worth failing over
-    send_message(
-        chat_id,
-        "Cleared my messages. (Telegram doesn't let a bot delete what you typed - only its own.)",
-        keyboard=MAIN_MENU,
-        one_time=False,
-    )
 
 
 def send_pick(chat_id, pick: dict) -> None:
@@ -155,7 +161,7 @@ def wait_for_reply(chat_id, cursor: UpdateCursor) -> str:
 
 
 def run_wardrobe_flow(chat_id, cursor: UpdateCursor) -> None:
-    send_message(chat_id, "On it — checking your calendar, the weather, and your wardrobe...")
+    send_status(chat_id)
 
     pending = get_pending_recommendation()
     if pending is not None:
@@ -168,9 +174,10 @@ def run_wardrobe_flow(chat_id, cursor: UpdateCursor) -> None:
         answer = wait_for_reply(chat_id, cursor)
         if answer.lower().startswith("y"):
             mark_worn(pending["photo_id"], pending["last_recommended_date"])
-            send_message(chat_id, "Got it, marked as worn. Now figuring out tomorrow...")
+            send_message(chat_id, "Got it, marked as worn.")
         else:
-            send_message(chat_id, "Okay, noted - not marking it as worn. Now figuring out tomorrow...")
+            send_message(chat_id, "Okay, noted - not marking it as worn.")
+        send_status(chat_id)
 
     tomorrow = get_tomorrow_date()
     calendar_text = get_tomorrow_calendar_text(tomorrow)
@@ -183,7 +190,7 @@ def run_wardrobe_flow(chat_id, cursor: UpdateCursor) -> None:
         )
         answer = wait_for_reply(chat_id, cursor)
         calendar_text = default_calendar_text(tomorrow) if answer.lower().startswith("no") else answer
-        send_message(chat_id, "Got it — thinking it through now, this can take a bit since it runs locally...")
+        send_status(chat_id)
 
     with keep_typing(chat_id):
         occasion_ctx = classify_context(calendar_text)
@@ -242,7 +249,7 @@ def run_plan_flow(chat_id, cursor: UpdateCursor) -> None:
     send_message(chat_id, "And what's the occasion?")
     occasion_answer = wait_for_reply(chat_id, cursor)
 
-    send_message(chat_id, f"Got it — checking the weather and your wardrobe for {target_date.strftime('%A, %b %d')}...")
+    send_status(chat_id)
     with keep_typing(chat_id):
         occasion_ctx = classify_context(occasion_answer)
         try:
@@ -332,7 +339,6 @@ BOT_COMMANDS = [
     {"command": "plan", "description": "What to wear for a specific date/occasion"},
     {"command": "more", "description": "Show another option from the last result"},
     {"command": "correct", "description": "Fix a wrong tag (e.g. /correct 2)"},
-    {"command": "clrscr", "description": "Clear my messages from this chat"},
     {"command": "help", "description": "List what this bot can do"},
 ]
 
@@ -360,7 +366,7 @@ def main() -> None:
                 if not message or "text" not in message:
                     continue
                 chat_id = message["chat"]["id"]
-                text = message["text"].strip()
+                text = LABEL_TO_COMMAND.get(message["text"].strip(), message["text"].strip())
                 command, _, arg = text.partition(" ")
                 command = command.lower()
                 if command == "/wardrobe":
@@ -371,8 +377,6 @@ def main() -> None:
                     run_more_flow(chat_id)
                 elif command == "/correct":
                     run_correct_flow(chat_id, cursor, arg)
-                elif command == "/clrscr":
-                    run_clrscr_flow(chat_id)
                 elif command in ("/help", "/start"):
                     run_help_flow(chat_id)
                 else:

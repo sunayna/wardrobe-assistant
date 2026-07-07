@@ -46,10 +46,10 @@ and [SPEC.md](SPEC.md) for the full design and the reasoning behind it.
    launchctl load ~/Library/LaunchAgents/com.wardrobeassistant.telegrambot.plist
    ```
 3. Message your bot `/wardrobe` any time you want tomorrow's recommendation. Other
-   commands (also shown as tappable buttons in the chat, and in Telegram's own `/`
-   menu): `/plan` (what to wear for a specific future date/occasion), `/more`
-   (another option from today's matches), `/correct` (fix a wrong tag, step-by-step),
-   `/clrscr` (clear the bot's own messages), `/help`.
+   commands are shown as plain-language tappable buttons in the chat ("What to wear
+   tomorrow", "Plan ahead", "Show another option", "Fix a tag", "Help") - no need to
+   remember or type slash syntax. They're also registered with Telegram's own `/`
+   autocomplete (`/plan`, `/more`, `/correct`, `/help`) for anyone who prefers typing.
 
 **CLI** (for testing, or if you'd rather not use Telegram):
 ```
