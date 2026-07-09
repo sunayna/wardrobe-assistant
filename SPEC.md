@@ -128,6 +128,34 @@ date from "always tomorrow"; `/plan` asks for both directly instead. Date parsin
 (16 days) — planning further out than that has no weather to base fabric choice on,
 so it's rejected with a clear message rather than silently guessing.
 
+## Learning ambiguous occasions (`profile_notes`)
+
+Short/jargon-y calendar entries ("parent meet", "team sync") often don't carry
+enough signal to classify correctly on their own - "parent meet" was once
+misclassified as a festive family gathering when it actually meant presenting at a
+school event. Rather than a manual profile the user writes upfront, this is learned
+from feedback in the moment:
+
+1. Before classifying, a `profile_notes` SQLite table (same `wardrobe.db`) is checked
+   for a **deterministic substring match** against past corrections. If found, it's
+   used directly - no LLM call, no re-asking.
+2. If nothing's known yet, one lightweight LLM call (`check_ambiguity`) decides if
+   the text is too vague to classify confidently, and if so, generates a clarifying
+   question. This is a single, simple, single-purpose call - not a LangChain agent,
+   no tool-calling - matching the project's llama3.2 pattern.
+3. If ambiguous, the bot asks the question once, uses your answer immediately for
+   that day's classification, and saves the (original text, answer) pair to
+   `profile_notes` for step 1 to catch next time.
+
+**Why deterministic matching instead of asking the LLM to honor "already
+clarified"**: tested giving `llama3.2` the past corrections as prompt context with
+an instruction like "if already clarified, don't ask again" - it still generated a
+new (different) question anyway. Rather than trust a small model to reliably follow
+a conditional instruction, the "do we already know this" check happens in plain
+Python before the LLM is ever invoked for ambiguity-checking. Consistent with the
+project's running theme: hardcode what can be hardcoded, only delegate genuinely
+fuzzy judgment (is this ambiguous? what does the text mean?) to the LLM.
+
 ## Triggers
 
 - **On-demand only**: you ask in chat, the pipeline runs and replies. No unattended

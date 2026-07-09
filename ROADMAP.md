@@ -143,3 +143,34 @@ the data it needs exists. See SPEC.md for the full design behind each step.
         ("Draping through the possibilities...", "Consulting the silk
         council...", etc.) - shown at the start of `/wardrobe`/`/plan`, after
         answering the confirm/calendar questions, and while the LLM ranks.
+      - Added `/history` ("Wear history") - a compact text list of all tagged
+        sarees, oldest-worn first (never-worn sarees sort first of all). Explored
+        writing this back into Google Photos as metadata instead, but confirmed
+        it's not feasible: description-writing is Library API only and scoped to
+        app-created content, which pre-existing user photos selected via the
+        Picker never qualify as - and even if it worked, Google Photos' own UI
+        doesn't support sorting by custom metadata anyway. Kept it as an in-bot
+        view of data we already have in `wear_history`.
+
+- [x] **11. Learn ambiguous occasions from feedback** — fixes real misclassifications
+      hit in daily use (e.g. "parent meet" read as a festive family gathering when
+      it meant presenting at a school event). Adds `profile_notes` (same
+      `wardrobe.db`) and `profile.py`. Before classifying: a deterministic substring
+      match against past corrections is tried first (no LLM call); only if nothing's
+      known does a lightweight `check_ambiguity()` LLM call decide whether to ask a
+      clarifying question. If asked, the answer resolves that day's classification
+      immediately and is saved for next time. Found mid-build that `llama3.2`
+      doesn't reliably honor an "already clarified, don't ask again" instruction
+      given as prompt context - it re-asked (a different) question anyway - so that
+      check was moved out of the LLM entirely into plain Python. Two simple,
+      single-purpose LLM calls (ambiguity check, then classification), not a
+      LangChain agent - no tool-calling, no autonomous orchestration; the control
+      flow (check known → maybe ask → classify) is hardcoded, same pattern as the
+      rest of this project's LLM usage.
+      Also fixed a real concurrency bug found during testing: the bot's main loop
+      iterated a whole batch of fetched Telegram updates in a `for` loop, but a
+      flow triggered mid-batch (e.g. `/wardrobe`) calls `wait_for_reply()`
+      internally, which does its own polling and advances the same cursor - so any
+      later message already in that stale batch got reprocessed once the flow
+      returned, which is what caused a confirm question to fire twice. Fixed by
+      processing one update per outer-loop pass and always re-fetching fresh.

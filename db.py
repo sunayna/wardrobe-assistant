@@ -20,6 +20,13 @@ CREATE TABLE IF NOT EXISTS wear_history (
     wear_count INTEGER DEFAULT 0,
     last_recommended_date DATE
 );
+
+CREATE TABLE IF NOT EXISTS profile_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trigger_text TEXT,
+    correction TEXT,
+    created_at TEXT
+);
 """
 
 

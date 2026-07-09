@@ -59,6 +59,41 @@ def default_calendar_text(tomorrow: datetime.date) -> str:
     return "Regular day off, nothing special planned, staying at home."
 
 
+AMBIGUITY_PROMPT = """Given this description of tomorrow's plans, decide if it's too
+vague to confidently determine the occasion, formality, and setting for choosing an
+outfit. Short, generic, or jargon-y phrases (like "parent meet", "team sync", "the
+thing at 5") are often ambiguous - full sentences usually are not.
+
+Respond with ONLY a JSON object with exactly these two fields:
+- "ambiguous": true or false
+- "question": if ambiguous, a short question to ask to find out what's actually
+  happening. Empty string if not ambiguous.
+
+Plans:
+{calendar_text}"""
+
+
+def check_ambiguity(calendar_text: str) -> str | None:
+    """Returns a clarifying question if the plans are too vague to classify
+    confidently, else None. Fails open (returns None) on any parsing hiccup - this
+    check is a nice-to-have, not worth blocking the whole flow over. Only call this
+    when profile.find_known_correction() has already come back empty - past
+    corrections are matched deterministically, not left to the LLM to honor a
+    prompt instruction (it doesn't reliably)."""
+    prompt = AMBIGUITY_PROMPT.format(calendar_text=calendar_text)
+    model = ChatOllama(model="llama3.2", temperature=0)
+    response = model.invoke(prompt)
+    raw = response.content
+    start, end = raw.find("{"), raw.rfind("}")
+    try:
+        data = json.loads(raw[start : end + 1])
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if data.get("ambiguous") and data.get("question"):
+        return data["question"]
+    return None
+
+
 CLASSIFY_PROMPT = """Given tomorrow's plans below, classify the occasion for someone
 deciding what saree to wear. Respond with ONLY a JSON object, no other text, with
 exactly these four fields:
@@ -68,7 +103,7 @@ exactly these four fields:
   school/work day is around 2. A plain day off at home is 1.
 - "time_of_day": pick exactly ONE of these four words: morning, afternoon, evening, night
 - "indoor_outdoor": pick exactly ONE of these three words: indoor, outdoor, mixed
-
+{profile_section}
 Plans:
 {calendar_text}"""
 
@@ -76,9 +111,11 @@ VALID_TIMES_OF_DAY = {"morning", "afternoon", "evening", "night"}
 VALID_INDOOR_OUTDOOR = {"indoor", "outdoor", "mixed"}
 
 
-def classify_context(calendar_text: str) -> OccasionContext:
+def classify_context(calendar_text: str, profile_context: str = "") -> OccasionContext:
+    profile_section = f"\n{profile_context}\n" if profile_context else ""
+    prompt = CLASSIFY_PROMPT.format(calendar_text=calendar_text, profile_section=profile_section)
     model = ChatOllama(model="llama3.2", temperature=0)
-    response = model.invoke(CLASSIFY_PROMPT.format(calendar_text=calendar_text))
+    response = model.invoke(prompt)
     raw = response.content
     start, end = raw.find("{"), raw.rfind("}")
     data = json.loads(raw[start : end + 1])
@@ -108,7 +145,9 @@ def get_context() -> OccasionContext:
         answer = input(prompt).strip()
         calendar_text = answer or default_calendar_text(tomorrow)
 
-    return classify_context(calendar_text)
+    from profile import get_profile_context  # local import - keeps context.py DB-free unless actually used
+
+    return classify_context(calendar_text, get_profile_context())
 
 
 if __name__ == "__main__":
