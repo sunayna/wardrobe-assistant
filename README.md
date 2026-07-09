@@ -47,9 +47,13 @@ and [SPEC.md](SPEC.md) for the full design and the reasoning behind it.
    ```
 3. Message your bot `/wardrobe` any time you want tomorrow's recommendation. Other
    commands are shown as plain-language tappable buttons in the chat ("What to wear
-   tomorrow", "Plan ahead", "Show another option", "Fix a tag", "Help") - no need to
-   remember or type slash syntax. They're also registered with Telegram's own `/`
-   autocomplete (`/plan`, `/more`, `/correct`, `/help`) for anyone who prefers typing.
+   tomorrow", "Plan ahead", "Show another option", "Fix a tag", "Wear history",
+   "Help") - no need to remember or type slash syntax. They're also registered with
+   Telegram's own `/` autocomplete (`/plan`, `/more`, `/correct`, `/history`,
+   `/help`) for anyone who prefers typing.
+4. If a calendar entry is too vague to classify (e.g. "parent meet"), the bot will
+   ask you to clarify once - your answer is remembered, so it won't ask again for
+   similar entries in the future.
 
 **CLI** (for testing, or if you'd rather not use Telegram):
 ```

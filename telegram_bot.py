@@ -9,10 +9,11 @@ import requests
 from dotenv import load_dotenv
 
 from confirm import get_pending_recommendation, mark_worn, record_recommendation
-from context import classify_context, default_calendar_text, get_tomorrow_calendar_text, get_tomorrow_date
+from context import check_ambiguity, classify_context, default_calendar_text, get_tomorrow_calendar_text, get_tomorrow_date
 from dateparse import parse_target_date
 from db import get_connection
 from ingest import has_local_photo
+from profile import add_profile_note, find_known_correction, get_profile_context
 from ranking import rank_candidates
 from wardrobe import query_wardrobe
 from weather import get_weather_constraints
@@ -42,12 +43,17 @@ LABEL_TO_COMMAND = {
     "Plan ahead": "/plan",
     "Show another option": "/more",
     "Fix a tag": "/correct",
+    "Wear history": "/history",
     "Help": "/help",
 }
 
 # Always-visible menu, so you don't have to remember any commands - tapping a
 # button sends its label, which gets translated to the real command before dispatch.
-MAIN_MENU = [["What to wear tomorrow", "Plan ahead"], ["Show another option", "Fix a tag"], ["Help"]]
+MAIN_MENU = [
+    ["What to wear tomorrow", "Plan ahead"],
+    ["Show another option", "Fix a tag"],
+    ["Wear history", "Help"],
+]
 
 
 def build_reply_markup(buttons: list[list[str]], one_time: bool) -> dict:
@@ -67,6 +73,27 @@ def send_message(chat_id, text: str, keyboard: list[list[str]] | None = None, on
 
 def send_typing(chat_id) -> None:
     requests.post(f"{API}/sendChatAction", json={"chat_id": chat_id, "action": "typing"}, timeout=15)
+
+
+def send_lines(chat_id, lines: list[str], keyboard: list[list[str]] | None = None, one_time: bool = True) -> None:
+    """Sends a list of lines as one or more messages, splitting under Telegram's
+    ~4096 char limit without breaking mid-line. The keyboard (if any) is attached
+    only to the last chunk."""
+    chunk: list[str] = []
+    length = 0
+    chunks: list[list[str]] = []
+    for line in lines:
+        if chunk and length + len(line) + 1 > 3500:
+            chunks.append(chunk)
+            chunk, length = [], 0
+        chunk.append(line)
+        length += len(line) + 1
+    if chunk:
+        chunks.append(chunk)
+
+    for i, c in enumerate(chunks):
+        is_last = i == len(chunks) - 1
+        send_message(chat_id, "\n".join(c), keyboard=keyboard if is_last else None, one_time=one_time)
 
 
 # Rotates so it's not the same line every time - replaces the old dry "this can
@@ -160,6 +187,25 @@ def wait_for_reply(chat_id, cursor: UpdateCursor) -> str:
                 return message["text"].strip()
 
 
+def resolve_occasion_text(chat_id, cursor: UpdateCursor, raw_text: str) -> str:
+    """Applies an already-learned correction deterministically (matched by simple
+    substring, not left to the LLM to honor an "already clarified" instruction - it
+    doesn't reliably). If nothing's known yet and the text is genuinely ambiguous,
+    asks once and saves the answer so it's known next time."""
+    known = find_known_correction(raw_text)
+    if known:
+        return f"{raw_text}\n(Note: {known})"
+
+    question = check_ambiguity(raw_text)
+    if question is None:
+        return raw_text
+
+    send_message(chat_id, question)
+    clarification = wait_for_reply(chat_id, cursor)
+    add_profile_note(raw_text, clarification)
+    return f"{raw_text}\n(Note: {clarification})"
+
+
 def run_wardrobe_flow(chat_id, cursor: UpdateCursor) -> None:
     send_status(chat_id)
 
@@ -190,10 +236,12 @@ def run_wardrobe_flow(chat_id, cursor: UpdateCursor) -> None:
         )
         answer = wait_for_reply(chat_id, cursor)
         calendar_text = default_calendar_text(tomorrow) if answer.lower().startswith("no") else answer
-        send_status(chat_id)
+
+    calendar_text = resolve_occasion_text(chat_id, cursor, calendar_text)
+    send_status(chat_id)
 
     with keep_typing(chat_id):
-        occasion_ctx = classify_context(calendar_text)
+        occasion_ctx = classify_context(calendar_text, get_profile_context())
         weather_ctx = get_weather_constraints()
         recommend_and_deliver(chat_id, occasion_ctx, weather_ctx, tomorrow, when_label="Tomorrow")
 
@@ -248,10 +296,11 @@ def run_plan_flow(chat_id, cursor: UpdateCursor) -> None:
 
     send_message(chat_id, "And what's the occasion?")
     occasion_answer = wait_for_reply(chat_id, cursor)
+    occasion_answer = resolve_occasion_text(chat_id, cursor, occasion_answer)
 
     send_status(chat_id)
     with keep_typing(chat_id):
-        occasion_ctx = classify_context(occasion_answer)
+        occasion_ctx = classify_context(occasion_answer, get_profile_context())
         try:
             weather_ctx = get_weather_constraints(target_date)
         except ValueError as e:
@@ -334,11 +383,44 @@ def run_correct_flow(chat_id, cursor: UpdateCursor, arg: str) -> None:
     send_message(chat_id, f"Updated {field} to '{value}'.", keyboard=MAIN_MENU, one_time=False)
 
 
+def get_wear_history_sorted() -> list[dict]:
+    """Oldest-worn first; never-worn sarees sort first of all (most "overdue")."""
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """
+        SELECT s.fabric, s.color, w.last_worn_date, w.wear_count
+        FROM sarees s
+        LEFT JOIN wear_history w ON s.photo_id = w.photo_id
+        ORDER BY w.last_worn_date IS NOT NULL, w.last_worn_date ASC
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def run_history_flow(chat_id) -> None:
+    rows = get_wear_history_sorted()
+    if not rows:
+        send_message(chat_id, "No sarees tagged yet.", keyboard=MAIN_MENU, one_time=False)
+        return
+
+    lines = ["Oldest to newest worn:"]
+    for i, r in enumerate(rows, start=1):
+        worn = r["last_worn_date"] or "never worn"
+        count = r["wear_count"] or 0
+        suffix = f", worn {count}x" if count else ""
+        lines.append(f"{i}. {r['fabric']} ({r['color']}) — {worn}{suffix}")
+
+    send_lines(chat_id, lines, keyboard=MAIN_MENU, one_time=False)
+
+
 BOT_COMMANDS = [
     {"command": "wardrobe", "description": "What to wear tomorrow"},
     {"command": "plan", "description": "What to wear for a specific date/occasion"},
     {"command": "more", "description": "Show another option from the last result"},
     {"command": "correct", "description": "Fix a wrong tag (e.g. /correct 2)"},
+    {"command": "history", "description": "Wear history, oldest to newest worn"},
     {"command": "help", "description": "List what this bot can do"},
 ]
 
@@ -360,7 +442,14 @@ def main() -> None:
     print("Telegram bot running. Commands: /wardrobe, /plan, /more, /correct, /help.")
     while True:
         try:
-            for update in get_updates(cursor.next_id):
+            updates = get_updates(cursor.next_id)
+            # Process one update per outer-loop pass, then re-fetch fresh - a flow
+            # triggered below (e.g. /wardrobe) calls wait_for_reply(), which does
+            # its own polling and advances this same cursor. If we kept iterating
+            # this batch afterward, any later message already consumed by that
+            # nested wait would get reprocessed here too (this is what caused a
+            # confirm question to fire twice).
+            for update in updates[:1]:
                 cursor.advance_past(update)
                 message = update.get("message")
                 if not message or "text" not in message:
@@ -377,6 +466,8 @@ def main() -> None:
                     run_more_flow(chat_id)
                 elif command == "/correct":
                     run_correct_flow(chat_id, cursor, arg)
+                elif command == "/history":
+                    run_history_flow(chat_id)
                 elif command in ("/help", "/start"):
                     run_help_flow(chat_id)
                 else:
