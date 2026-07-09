@@ -27,7 +27,7 @@ the data it needs exists. See SPEC.md for the full design behind each step.
       saves each photo locally (`photos/`) at ingestion time — the Picker API's
       baseUrl only works within its original session, so this is the only point the
       image bytes are ever reachable; needed for feature 9's photo-in-chat replies.
-      49/99 tagged so far.
+      61/99 tagged so far.
 
 - [x] **3. Weather step** — Open-Meteo (free, no API key) for tomorrow's forecast in
       Gurgaon, mapped to `{recommended_fabrics, avoid_fabrics}` via
